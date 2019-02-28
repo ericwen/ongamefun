@@ -1,0 +1,118 @@
+from ontology.interop.System.Runtime import Notify, CheckWitness
+from ontology.interop.Ontology.Runtime import Base58ToAddress,AddressToBase58
+from ontology.interop.Ontology.Native import Invoke
+from ontology.builtins import state, bytearray
+from ontology.interop.System.ExecutionEngine import GetExecutingScriptHash,GetCallingScriptHash
+from ontology.interop.System.App import RegisterAppCall
+
+# contract address 
+contract_address_ONT = bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01')
+contract_address_ONG = bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02')
+self_contract_address = GetExecutingScriptHash()
+funContract = RegisterAppCall('3b920537e2804e874619bc142317f617ab778176', 'operation', 'args')
+crowd_address = Base58ToAddress('ARkCWzGLvj5hpohNY5t1rxedakjKNiehuu')
+
+def Main(operation, args):
+    if operation == 'crowdOng':
+        from_acct = args[0]
+        ong_amount = args[1]
+        if len(from_acct)!=20:
+            from_acct=Base58ToAddress(from_acct)
+        return crowdOng(from_acct, ong_amount)
+    
+    if operation == 'crowdOnt':
+        from_acct = args[0]
+        ong_amount = args[1]
+        if len(from_acct)!=20:
+            from_acct=Base58ToAddress(from_acct)
+        return crowdOnt(from_acct, ong_amount)
+        
+    if operation == 'transfer_ONG_to_crowd':
+        from_acct = args[0]
+        ong_amount = args[1]
+        if len(from_acct)!=20:
+            from_acct=Base58ToAddress(from_acct)
+        return transfer_ONG_to_crowd(from_acct, ong_amount)
+    
+    if operation == 'transfer_ONT_to_crowd':
+        from_acct = args[0]
+        ong_amount = args[1]
+        if len(from_acct)!=20:
+            from_acct=Base58ToAddress(from_acct)
+        return transfer_ONT_to_crowd(from_acct, ong_amount) 
+    
+    if operation == 'callFunBalanceOf': 
+        return callFunBalanceOf()
+        
+    if operation == 'takeBackFun': 
+        return takeBackFun()
+        
+    if operation == 'getAddress':
+        return getAddress()
+    
+    return False
+
+def crowdOng(from_acct,amount):
+    funs=amount*1000*10
+    if callFunBalanceOf()>funs:
+        if transfer_ONG_to_crowd(from_acct,amount):
+            return callFunTransfer(from_acct,funs)
+    
+    return False
+
+def crowdOnt(from_acct,amount):
+    funs=amount*2000*1000000000*10
+    if callFunBalanceOf()>funs:
+        if transfer_ONT_to_crowd(from_acct,amount):
+            return callFunTransfer(from_acct,funs)
+    
+    return False
+
+    
+def callFunTransfer(to_acct,amount):
+    return funContract('transfer',[self_contract_address,to_acct,amount])
+    
+def takeBackFun():
+    funs=callFunBalanceOf()
+    callFunTransfer(crowd_address,funs)
+
+def callFunBalanceOf():
+    amount= funContract('balanceOf',[self_contract_address])
+    Notify(['funAmmount',amount,AddressToBase58(self_contract_address)])
+    return amount
+
+def transfer_ONG_to_crowd(from_acct, ong_amount):
+    param = state(from_acct, crowd_address, ong_amount)
+    res = Invoke(0, contract_address_ONG, 'transfer', [param])
+    if res and res == b'\x01':
+        Notify('transfer ONG to contract successfully')
+        return True
+    else:
+        Notify('transfer ONG failed')
+        return False
+        
+def transfer_ONT_to_crowd(from_acct, ont_amount):
+    param = state(from_acct, crowd_address, ont_amount)
+    res = Invoke(0, contract_address_ONT, 'transfer', [param])
+    if res and res == b'\x01':
+        Notify('transfer ONT to contract successfully')
+        return True
+    else:
+        Notify('transfer ONT failed')
+        return False
+        
+def check_crowd_ONG_amount():
+    param = state(crowd_address)
+    # do not use [param]
+    res = Invoke(0, contract_address_ONG, 'balanceOf', param)
+    return res
+
+def check_crowd_ONT_amount():
+    param = state(crowd_address)
+    # do not use [param]
+    res = Invoke(0, contract_address_ONT, 'balanceOf', param)
+    return res
+    
+def getAddress():
+    Notify([self_contract_address,AddressToBase58(self_contract_address)]);
+    return AddressToBase58(self_contract_address)
